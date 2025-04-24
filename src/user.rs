@@ -2,6 +2,7 @@ use bincode;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use miden_objects::note::Note;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MidenNote {
