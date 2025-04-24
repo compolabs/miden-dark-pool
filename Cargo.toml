@@ -1,0 +1,18 @@
+[package]
+name = "miden-dark-pool"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "matcher"
+path = "src/matcher.rs"
+
+[[bin]]
+name = "user"
+path = "src/user.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+bincode = "1.3"
+anyhow = "1.0"
