@@ -1,11 +1,14 @@
 use bincode;
+use miden_client::note::Note;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
+use miden_lib::utils::Deserializable;
+// use miden_lib::utils::ByteReader;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct MidenNote {
-    id: u64,
+    id: String,
     payload: Vec<u8>,
 }
 
@@ -34,12 +37,17 @@ async fn main() -> anyhow::Result<()> {
 
             match bincode::deserialize::<MidenNote>(&buffer) {
                 Ok(note) => {
-                    let payload_str = String::from_utf8(note.payload.clone())
-                        .unwrap_or("[invalid UTF-8]".to_string());
+                    //deserialize Miden note
+                    let note_bytes = note.payload;
+
+                    //TODO: error handling should be added
+                    //TODO: check for valid notes by checking the note script hash
+                    let received_note: Note = Note::read_from_bytes(&note_bytes).unwrap(); 
                     println!("Received note:");
-                    println!("  ID: {}", note.id);
-                    println!("  Payload: {}", payload_str);
-                },
+                    println!("  ID: {:?}", note.id);
+                    println!("  Payload: {:#?}", received_note);
+                    
+                }
                 Err(e) => eprintln!("Failed to deserialize note: {}", e),
             }
         });
