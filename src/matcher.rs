@@ -6,6 +6,9 @@ use tokio::net::TcpListener;
 use miden_lib::utils::Deserializable;
 // use miden_lib::utils::ByteReader;
 
+//TODO: move MidenNote struct into common util file shared between user and matcher
+// the payload vector is the serialized note
+// id is the noteId
 #[derive(Serialize, Deserialize, Debug)]
 struct MidenNote {
     id: String,

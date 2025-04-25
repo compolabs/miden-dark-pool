@@ -25,9 +25,9 @@ use miden_objects::note::NoteAssets;
 use miden_objects::Word;
 use miden_tx::testing::{Auth, MockChain};
 
-
-// use miden_crypto::utils::{ByteReader, Deserializable};
-
+//TODO: move MidenNote struct into common util file shared between user and matcher
+// the payload vector is the serialized note
+// id is the noteId
 #[derive(Serialize, Deserialize, Debug)]
 struct MidenNote {
     id: String,
@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     let faucet_id_2 = AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1).unwrap();
     let requested_asset: Asset = FungibleAsset::new(faucet_id_2, 100).unwrap().into(); // Requested asset for swap
 
-    // Create accounts for sender and target
+    // Create accounts for sender
     let sender_account = chain.add_new_wallet(Auth::BasicAuth);
 
 
@@ -98,9 +98,9 @@ pub fn create_partial_swap_note(
 ) -> Result<Note, NoteError> {
     let assembler: Assembler = TransactionKernel::assembler().with_debug_mode(true);
 
-    let note_code = include_str!("../notes/SWAPp.masm");
+    let note_code = include_str!("../notes/PUBLIC_SWAPp.masm");
     let note_script = NoteScript::compile(note_code, assembler).unwrap();
-    let note_type = NoteType::Private;
+    let note_type = NoteType::Public;
 
     let requested_asset_word: Word = requested_asset.into();
     let tag = build_swap_tag(
