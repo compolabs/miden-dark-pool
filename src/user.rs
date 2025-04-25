@@ -98,9 +98,9 @@ pub fn create_partial_swap_note(
 ) -> Result<Note, NoteError> {
     let assembler: Assembler = TransactionKernel::assembler().with_debug_mode(true);
 
-    let note_code = include_str!("../notes/PUBLIC_SWAPp.masm");
+    let note_code = include_str!("../notes/PRIVATE_SWAPp.masm");
     let note_script = NoteScript::compile(note_code, assembler).unwrap();
-    let note_type = NoteType::Public;
+    let note_type = NoteType::Private;
 
     let requested_asset_word: Word = requested_asset.into();
     let tag = build_swap_tag(
