@@ -1,9 +1,14 @@
 use bincode;
 use miden_client::note::Note;
+use miden_lib::utils::Deserializable;
+use miden_tx::utils::ToHex;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
-use miden_lib::utils::Deserializable;
+use winter_utils::Serializable;
+
 // use miden_lib::utils::ByteReader;
 
 //TODO: move MidenNote struct into common util file shared between user and matcher
@@ -43,13 +48,29 @@ async fn main() -> anyhow::Result<()> {
                     //deserialize Miden note
                     let note_bytes = note.payload;
 
-                    //TODO: error handling should be added
-                    //TODO: check for valid notes by checking the note script hash
-                    let received_note: Note = Note::read_from_bytes(&note_bytes).unwrap(); 
+                    //check for valid notes
+                    //  1. check that note can be correctly deserialized
+                    //  2. check that note script hash is correct
+                    let received_note = Note::read_from_bytes(&note_bytes);
+                    if received_note.is_err() {
+                        eprintln!("Failed to deserialize note");
+                    };
+                    let received_note = received_note.unwrap();
+                    let note_script = received_note.script().to_bytes();
+
+                    let mut hasher = Sha256::new();
+                    hasher.update(note_script);
+                    let hash = hasher.finalize().to_hex();
+                    println!("script hash: {:?}", hash);
+
+                    // note script hash of PRIVATE_SWAPp note
+                    if hash != "e39a29af05b233279c0009701242ff54b1d8c0d848ad2f2001eb7e0ac6ef745e" {
+                        eprintln!("Not a valid note");
+                    }
+
                     println!("Received note:");
                     println!("  ID: {:?}", note.id);
                     println!("  Payload: {:#?}", received_note);
-                    
                 }
                 Err(e) => eprintln!("Failed to deserialize note: {}", e),
             }

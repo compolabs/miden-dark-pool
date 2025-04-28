@@ -1,29 +1,29 @@
 use bincode;
+use miden_lib::transaction::TransactionKernel;
+use miden_lib::utils::Serializable;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
-use miden_lib::transaction::TransactionKernel;
-use miden_lib::utils::Serializable;
 
+use miden_lib::note::utils::build_swap_tag;
+use miden_objects::NoteError;
+use miden_objects::Word;
+use miden_objects::note::NoteAssets;
+use miden_objects::note::NoteExecutionHint;
+use miden_objects::note::NoteInputs;
+use miden_objects::note::NoteMetadata;
+use miden_objects::note::NoteRecipient;
+use miden_objects::note::NoteScript;
 use miden_objects::{
     Felt,
     account::AccountId,
-    testing::account_id::{ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1},
     asset::{Asset, FungibleAsset},
     crypto::rand::RpoRandomCoin,
     note::{Note, NoteDetails, NoteType},
+    testing::account_id::{ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET, ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1},
 };
-use miden_objects::note::NoteRecipient;
-use miden_objects::note::NoteMetadata;
-use miden_objects::note::NoteExecutionHint;
-use miden_objects::note::NoteInputs;
-use miden_objects::NoteError;
-use miden_vm::Assembler;
-use miden_objects::note::NoteScript;
-use miden_lib::note::utils::build_swap_tag;
-use miden_objects::note::NoteAssets;
-use miden_objects::Word;
 use miden_tx::testing::{Auth, MockChain};
+use miden_vm::Assembler;
 
 //TODO: move MidenNote struct into common util file shared between user and matcher
 // the payload vector is the serialized note
@@ -36,7 +36,6 @@ struct MidenNote {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    
     let mut chain = MockChain::new();
     let faucet = chain.add_existing_faucet(Auth::NoAuth, "POL", 100000u64, None);
     let offered_asset = faucet.mint(100); // Offered asset to swap
@@ -44,9 +43,8 @@ async fn main() -> anyhow::Result<()> {
     let faucet_id_2 = AccountId::try_from(ACCOUNT_ID_PUBLIC_FUNGIBLE_FAUCET_1).unwrap();
     let requested_asset: Asset = FungibleAsset::new(faucet_id_2, 100).unwrap().into(); // Requested asset for swap
 
-    // Create accounts for sender
+    // Create account for sender
     let sender_account = chain.add_new_wallet(Auth::BasicAuth);
-
 
     // Set up the swap transaction
     let serial_num = [Felt::new(1), Felt::new(2), Felt::new(3), Felt::new(4)];
@@ -103,11 +101,7 @@ pub fn create_partial_swap_note(
     let note_type = NoteType::Private;
 
     let requested_asset_word: Word = requested_asset.into();
-    let tag = build_swap_tag(
-        note_type,
-        &offered_asset,
-        &requested_asset,
-    )?;
+    let tag = build_swap_tag(note_type, &offered_asset, &requested_asset)?;
 
     let word2: [Felt; 2] = creator.into();
 
