@@ -68,14 +68,36 @@ async fn main() -> anyhow::Result<()> {
 
     let sender_account = create_account(&mut client, keystore.clone()).await.unwrap();
 
-    let faucet = create_faucet(&mut client, keystore.clone(), "MID")
+    // client
+    //     .import_account_by_id(AccountId::from_hex("0x050c96618cdcac2000079184cf6da4").unwrap())
+    //     .await
+    //     .unwrap();
+    // let binding = client
+    //     .get_account(AccountId::from_hex("0x050c96618cdcac2000079184cf6da4").unwrap())
+    //     .await
+    //     .unwrap()
+    //     .unwrap();
+    // let faucet = binding.account();
+
+    // client
+    //     .import_account_by_id(AccountId::from_hex("0xecb09140fec7c2200007a60ef65554").unwrap())
+    //     .await?;
+    // let binding = client
+    //     .get_account(AccountId::from_hex("0xecb09140fec7c2200007a60ef65554").unwrap())
+    //     .await
+    //     .unwrap()
+    //     .unwrap();
+    // let faucet2 = binding.account();
+
+    let faucet = create_faucet(&mut client, keystore.clone(), "ETH")
         .await
         .unwrap();
+
     let faucet2 = create_faucet(&mut client, keystore.clone(), "ETH")
         .await
         .unwrap();
 
-    let _ = mint_and_consume(&mut client, faucet.clone(), sender_account.clone(), 100)
+    let _ = mint_and_consume(&mut client, faucet.clone(), sender_account.clone(), 1000)
         .await
         .unwrap();
 
@@ -114,6 +136,9 @@ async fn main() -> anyhow::Result<()> {
 
     let _ = client.submit_transaction(tx_result).await;
     client.sync_state().await?;
+
+    // This is added so that the user.rs can be called multiple times with different sqlite3 file
+    delete_keystore_and_store().await;
 
     // serialize the swap note for sending over tcp
     let buffer = swap_note.to_bytes();
@@ -274,7 +299,6 @@ pub async fn create_faucet(
     Ok(faucet_account)
 }
 
-
 pub async fn mint_and_consume(
     client: &mut Client,
     faucet_account: Account,
@@ -327,4 +351,30 @@ pub async fn mint_and_consume(
     client.sync_state().await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
     Ok(())
+}
+
+pub async fn delete_keystore_and_store() {
+    // Remove the SQLite store file
+    let store_path = "./store.sqlite3";
+    if tokio::fs::metadata(store_path).await.is_ok() {
+        if let Err(e) = tokio::fs::remove_file(store_path).await {
+            eprintln!("failed to remove {}: {}", store_path, e);
+        }
+    } else {
+        println!("store not found: {}", store_path);
+    }
+
+    // // Remove all files in the ./keystore directory
+    // let keystore_dir = "./keystore";
+    // match tokio::fs::read_dir(keystore_dir).await {
+    //     Ok(mut dir) => {
+    //         while let Ok(Some(entry)) = dir.next_entry().await {
+    //             let file_path = entry.path();
+    //             if let Err(e) = tokio::fs::remove_file(&file_path).await {
+    //                 eprintln!("failed to remove {}: {}", file_path.display(), e);
+    //             }
+    //         }
+    //     }
+    //     Err(e) => eprintln!("failed to read directory {}: {}", keystore_dir, e),
+    // }
 }
