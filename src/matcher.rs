@@ -1,10 +1,11 @@
 use bincode;
-use miden_client::note::Note;
+use miden_objects::note::Note;
 use miden_lib::utils::Deserializable;
 use miden_tx::utils::ToHex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::collections::BTreeMap;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use winter_utils::Serializable;
@@ -18,6 +19,37 @@ use winter_utils::Serializable;
 struct MidenNote {
     id: String,
     payload: Vec<u8>,
+}
+
+struct Order {
+    id: String,
+    buy_asset: String,
+    sell_asset: String,
+    quantity: u128,
+    amount: u128
+    is_cancelled: bool
+}
+
+struct OrderManager {
+    buy_orders: BTreeMap<u128, Order>
+    sell_orders: BTreeMap<u128, Order>
+}
+
+impl OrderManager {
+    pub fn new() -> Self {
+        Self {
+            buy_orders: BTreeMap::new(),
+            sell_orders: BTreeMap::new(),
+        }
+    }
+
+    pub async fn add_order() {
+
+    }
+
+    pub async fn process_orders() {
+
+    }
 }
 
 #[tokio::main]
@@ -56,6 +88,8 @@ async fn main() -> anyhow::Result<()> {
                         eprintln!("Failed to deserialize note");
                     };
                     let received_note = received_note.unwrap();
+                    let note_type = received_note.metadata().note_type();
+                    let assets = received_note.assets();
                     let note_script = received_note.script().to_bytes();
 
                     let mut hasher = Sha256::new();
