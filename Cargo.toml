@@ -25,3 +25,4 @@ miden-crypto = "=0.7.1"
 miden-client = { version = "0.8.1", features = ["testing", "concurrent", "tonic", "sqlite"] }
 sha2 = "0.10.8"
 rand = { version = "0.9" }
+clap = { version = "4", features = ["derive"] }

@@ -45,7 +45,6 @@ async fn main() -> anyhow::Result<()> {
 
             match bincode::deserialize::<MidenNote>(&buffer) {
                 Ok(note) => {
-                    //deserialize Miden note
                     let note_bytes = note.payload;
 
                     //check for valid notes
@@ -70,7 +69,7 @@ async fn main() -> anyhow::Result<()> {
 
                     println!("Received note:");
                     println!("  ID: {:?}", note.id);
-                    println!("  Payload: {:#?}", received_note);
+                    // println!("  Payload: {:#?}", received_note);
                 }
                 Err(e) => eprintln!("Failed to deserialize note: {}", e),
             }

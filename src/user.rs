@@ -10,28 +10,59 @@ use miden_client::account::{
     component::BasicWallet, component::RpoFalcon512,
 };
 use miden_client::{
-    asset::TokenSymbol, auth::AuthSecretKey, builder::ClientBuilder, crypto::SecretKey,
+    asset::TokenSymbol,
+    auth::AuthSecretKey,
+    builder::ClientBuilder,
+    crypto::SecretKey,
     keystore::FilesystemKeyStore,
+    rpc::{Endpoint, TonicRpcClient},
+    transaction::TransactionRequestBuilder,
 };
 
-use miden_client::rpc::{Endpoint, TonicRpcClient};
-use miden_client::transaction::TransactionRequestBuilder;
 use miden_lib::{note::utils::build_swap_tag, transaction::TransactionKernel, utils::Serializable};
 use miden_objects::note::{
-    NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteInputs, NoteMetadata, NoteRecipient,
-    NoteScript, NoteTag,
+    Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteInputs, NoteMetadata,
+    NoteRecipient, NoteScript, NoteTag, NoteType,
 };
 use miden_objects::transaction::OutputNote;
 use miden_objects::{
     Felt, NoteError, Word,
     account::AccountId,
     asset::{Asset, FungibleAsset},
-    note::{Note, NoteType},
 };
 use miden_vm::Assembler;
 use rand::RngCore;
 use std::sync::Arc;
 use std::time::Duration;
+
+mod utils;
+use clap::Parser;
+use std::net::SocketAddr;
+use utils::common::delete_keystore_and_store;
+
+#[derive(Parser, Debug)]
+#[command(about = "Submit a swap Note(private) to the matcher")]
+struct Cli {
+    /// Unique user identifier
+    #[arg(long)]
+    user_id: String,
+
+    /// Token user is offering (e.g. ETH)
+    #[arg(long)]
+    token_a: String,
+
+    /// Amount of token_a
+    #[arg(long)]
+    amount_a: u64,
+
+    /// Token user wants in return (e.g. USDC)
+    #[arg(long)]
+    token_b: String,
+
+    /// Matcher TCP address (e.g. 127.0.0.1:8080)
+    #[arg(long)]
+    matcher_addr: SocketAddr,
+}
 
 //TODO: move MidenNote struct into common util file shared between user and matcher
 // the payload vector is the serialized note
@@ -44,6 +75,14 @@ struct MidenNote {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    assert!(cli.token_a != cli.token_b);
+    assert!(cli.amount_a > 0);
+
+    let keystore_path = format!("./keystore_{}", cli.user_id);
+    let store_path = format!("./store_{}.sqlite3", cli.user_id);
+
     // Initialize client & keystore
     let endpoint = Endpoint::new(
         "https".to_string(),
@@ -55,7 +94,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut client = ClientBuilder::new()
         .with_rpc(rpc_api)
-        .with_filesystem_keystore("./keystore")
+        .with_filesystem_keystore(&keystore_path)
+        .with_sqlite_store(&store_path)
         .in_debug_mode(true)
         .build()
         .await?;
@@ -64,7 +104,7 @@ async fn main() -> anyhow::Result<()> {
     println!("Latest block: {}", sync_summary.block_num);
 
     let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-        FilesystemKeyStore::new("./keystore".into()).unwrap();
+        FilesystemKeyStore::new(keystore_path.into()).unwrap();
 
     let sender_account = create_account(&mut client, keystore.clone()).await.unwrap();
 
@@ -138,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
     client.sync_state().await?;
 
     // This is added so that the user.rs can be called multiple times with different sqlite3 file
-    delete_keystore_and_store().await;
+    delete_keystore_and_store(&cli.user_id).await;
 
     // serialize the swap note for sending over tcp
     let buffer = swap_note.to_bytes();
@@ -351,30 +391,4 @@ pub async fn mint_and_consume(
     client.sync_state().await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
     Ok(())
-}
-
-pub async fn delete_keystore_and_store() {
-    // Remove the SQLite store file
-    let store_path = "./store.sqlite3";
-    if tokio::fs::metadata(store_path).await.is_ok() {
-        if let Err(e) = tokio::fs::remove_file(store_path).await {
-            eprintln!("failed to remove {}: {}", store_path, e);
-        }
-    } else {
-        println!("store not found: {}", store_path);
-    }
-
-    // // Remove all files in the ./keystore directory
-    // let keystore_dir = "./keystore";
-    // match tokio::fs::read_dir(keystore_dir).await {
-    //     Ok(mut dir) => {
-    //         while let Ok(Some(entry)) = dir.next_entry().await {
-    //             let file_path = entry.path();
-    //             if let Err(e) = tokio::fs::remove_file(&file_path).await {
-    //                 eprintln!("failed to remove {}: {}", file_path.display(), e);
-    //             }
-    //         }
-    //     }
-    //     Err(e) => eprintln!("failed to read directory {}: {}", keystore_dir, e),
-    // }
 }
