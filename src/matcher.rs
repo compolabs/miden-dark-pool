@@ -1,5 +1,6 @@
 use bincode;
 use miden_objects::note::{Note, NoteTag};
+use miden_objects::asset::Asset;
 use miden_lib::utils::Deserializable;
 use miden_tx::utils::ToHex;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,25 @@ struct MidenNote {
 
 #[derive(Debug, Clone)]
 struct OrderTypeError;
+
+impl std::error::Error for OrderTypeError {}
+impl std::fmt::Display for OrderTypeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result  {
+        todo!();
+    }
+}
+
+#[derive(Debug, Clone)]
+struct NoteError;
+
+impl std::error::Error for NoteError {}
+impl std::fmt::Display for NoteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result  {
+        todo!();
+    }
+}
+
+const ORDER_TYPE_BITS: u32 = 4;
 
 enum OrderType {
     Buy = 0,
@@ -49,8 +69,8 @@ impl OrderType {
 
 struct Order {
     id: String,
-    buy_asset: String,
-    sell_asset: String,
+    buy_asset: &Asset,
+    sell_asset: &Asset,
     quantity: u128,
     price: u128,
     order_type: OrderType
@@ -68,17 +88,17 @@ impl Order {
         let buy_asset = assets.iter().next().unwrap();
         let buy_amount = buy_asset.unwrap_fungible().amount();
         let sell_asset = assets.iter().next().unwrap();
-        let tag = note.metadata().tag();
-        let (prefix, use_case_id, payload) = decode_note_tag(&tag);
+        let tag = &note.metadata().tag();
+        let (prefix, use_case_id, payload) = decode_note_tag(tag);
+        let (price, order_type) = extract_order(payload).unwrap();
         Self {
-            id: note.id(),
+            id: note.id().to_hex(),
             buy_asset: buy_asset,
             sell_asset: sell_asset,
-            quantity: buy_amount,
-            price:
-            order_type: 
+            quantity: buy_amount as u128,
+            price: price as u128,
+            order_type: order_type
 
-            
         }
     }
 }
@@ -97,6 +117,22 @@ pub fn decode_note_tag(nt: &NoteTag) -> (bool, u16, u16) {
     let payload = (nt.0 & 0xFFFF) as u16;
     
     (is_local_use_case, use_case_id, payload)
+}
+
+pub fn extract_order(payload: u16) -> Result<(u16, OrderType), OrderTypeError> {
+    // Extract order type from the low bits
+    let order_type_value = payload & ((1 << ORDER_TYPE_BITS) - 1);
+        
+    // Extract price from the high bits
+    let price = payload >> ORDER_TYPE_BITS;
+        
+    // Convert to OrderType enum
+    match OrderType::from_u16(order_type_value) {
+        Ok(order_type) => Ok((price, order_type)),
+        Err(e) => Err(e),
+    }
+
+    
 }
 
 impl OrderManager {
