@@ -1,5 +1,5 @@
 use bincode;
-use miden_objects::note::Note;
+use miden_objects::note::{Note, NoteTag};
 use miden_lib::utils::Deserializable;
 use miden_tx::utils::ToHex;
 use serde::{Deserialize, Serialize};
@@ -21,18 +21,82 @@ struct MidenNote {
     payload: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+struct OrderTypeError;
+
+enum OrderType {
+    Buy = 0,
+    Sell = 1,
+    Cancel = 2
+}
+
+impl OrderType {
+    /// Convert from u16 to OrderType
+    pub fn from_u16(value: u16) -> Result<Self, OrderTypeError> {
+        match value {
+            0 => Ok(OrderType::Buy),
+            1 => Ok(OrderType::Sell),
+            2 => Ok(OrderType::Cancel),
+            _ => Err(OrderTypeError),
+        }
+    }
+
+    /// Convert to u16
+    pub fn to_u16(self) -> u16 {
+        self as u16
+    }
+}
+
 struct Order {
     id: String,
     buy_asset: String,
     sell_asset: String,
     quantity: u128,
-    amount: u128
-    is_cancelled: bool
+    price: u128,
+    order_type: OrderType
 }
 
 struct OrderManager {
-    buy_orders: BTreeMap<u128, Order>
+    buy_orders: BTreeMap<u128, Order>,
     sell_orders: BTreeMap<u128, Order>
+}
+
+impl Order {
+    pub fn new(note: Note) -> Self {
+        let assets = note.assets();
+        assert_eq!(assets.num_assets(), 2);
+        let buy_asset = assets.iter().next().unwrap();
+        let buy_amount = buy_asset.unwrap_fungible().amount();
+        let sell_asset = assets.iter().next().unwrap();
+        let tag = note.metadata().tag();
+        let (prefix, use_case_id, payload) = decode_note_tag(&tag);
+        Self {
+            id: note.id(),
+            buy_asset: buy_asset,
+            sell_asset: sell_asset,
+            quantity: buy_amount,
+            price:
+            order_type: 
+
+            
+        }
+    }
+}
+
+pub fn decode_note_tag(nt: &NoteTag) -> (bool, u16, u16) {
+    // Extract the execution bits (top 2 bits)
+    let execution_bits = (nt.0 >> 30) & 0b11;
+        
+    // Check if this is a local use case tag (execution bits should be b11)
+    let is_local_use_case = execution_bits == 0b11;
+    
+    // Extract the use case ID (next 14 bits)
+    let use_case_id = ((nt.0 >> 16) & 0x3FFF) as u16; // 0x3FFF is 2^14 - 1
+    
+    // Extract the payload (bottom 16 bits)
+    let payload = (nt.0 & 0xFFFF) as u16;
+    
+    (is_local_use_case, use_case_id, payload)
 }
 
 impl OrderManager {
