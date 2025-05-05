@@ -15,7 +15,6 @@ pub struct TestUser {
 }
 
 async fn setup_test_user(user_id: &str, faucet_a: Account, amount: u64) -> TestUser {
-
     let keystore_path = format!("./keystore_{}", user_id);
     let store_path = format!("./store_{}.sqlite3", user_id);
 
