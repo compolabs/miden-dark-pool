@@ -14,3 +14,6 @@ cargo run --release --bin user \
   --token-b USDC \
   --matcher-addr 127.0.0.1:8080
   ```
+
+To Test:
+`cargo test --test user_flow`
