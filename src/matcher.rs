@@ -2,23 +2,13 @@ use bincode;
 use miden_client::note::Note;
 use miden_lib::utils::Deserializable;
 use miden_tx::utils::ToHex;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpListener;
 use winter_utils::Serializable;
 
-// use miden_lib::utils::ByteReader;
-
-//TODO: move MidenNote struct into common util file shared between user and matcher
-// the payload vector is the serialized note
-// id is the noteId
-#[derive(Serialize, Deserialize, Debug)]
-struct MidenNote {
-    id: String,
-    payload: Vec<u8>,
-}
+mod utils;
+use utils::common::MidenNote;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
