@@ -1,3 +1,13 @@
+use serde::{Deserialize, Serialize};
+
+// the payload vector is the serialized note
+// id is the noteId
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MidenNote {
+    pub id: String,
+    pub payload: Vec<u8>,
+}
+
 pub async fn delete_keystore_and_store(user_id: &str) {
     // Remove the SQLite store file
 

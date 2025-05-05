@@ -8,7 +8,7 @@ To run:
 ```
 cargo run --release --bin user \
   -- \
-  --user-id user1 \
+  --user user1 \   
   --token-a ETH \
   --amount-a 50 \
   --token-b USDC \

@@ -1,19 +1,9 @@
 use bincode;
-use miden_client::Client;
-use miden_client::ClientError;
-use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
-use miden_client::account::{
-    Account, AccountBuilder, AccountStorageMode, AccountType, component::BasicFungibleFaucet,
-    component::BasicWallet, component::RpoFalcon512,
-};
 use miden_client::{
-    asset::TokenSymbol,
-    auth::AuthSecretKey,
     builder::ClientBuilder,
-    crypto::SecretKey,
     keystore::FilesystemKeyStore,
     rpc::{Endpoint, TonicRpcClient},
     transaction::TransactionRequestBuilder,
@@ -31,21 +21,23 @@ use miden_objects::{
     asset::{Asset, FungibleAsset},
 };
 use miden_vm::Assembler;
-use rand::RngCore;
 use std::sync::Arc;
-use std::time::Duration;
 
 mod utils;
 use clap::Parser;
 use std::net::SocketAddr;
-use utils::common::delete_keystore_and_store;
+use utils::utility::{create_faucet, mint_and_consume};
+use utils::{
+    common::{MidenNote, delete_keystore_and_store},
+    utility::create_account,
+};
 
 #[derive(Parser, Debug)]
 #[command(about = "Submit a swap Note(private) to the matcher")]
 struct Cli {
     /// Unique user identifier
     #[arg(long)]
-    user_id: String,
+    user: String,
 
     /// Token user is offering (e.g. ETH)
     #[arg(long)]
@@ -64,15 +56,6 @@ struct Cli {
     matcher_addr: SocketAddr,
 }
 
-//TODO: move MidenNote struct into common util file shared between user and matcher
-// the payload vector is the serialized note
-// id is the noteId
-#[derive(Serialize, Deserialize, Debug)]
-struct MidenNote {
-    id: String,
-    payload: Vec<u8>,
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -80,8 +63,8 @@ async fn main() -> anyhow::Result<()> {
     assert!(cli.token_a != cli.token_b);
     assert!(cli.amount_a > 0);
 
-    let keystore_path = format!("./keystore_{}", cli.user_id);
-    let store_path = format!("./store_{}.sqlite3", cli.user_id);
+    let keystore_path = format!("./keystore_{}", cli.user);
+    let store_path = format!("./store_{}.sqlite3", cli.user);
 
     // Initialize client & keystore
     let endpoint = Endpoint::new(
@@ -107,6 +90,13 @@ async fn main() -> anyhow::Result<()> {
         FilesystemKeyStore::new(keystore_path.into()).unwrap();
 
     let sender_account = create_account(&mut client, keystore.clone()).await.unwrap();
+    // let binding = client
+    //     .get_account(AccountId::from_hex(&cli.user).unwrap())
+    //     .await
+    //     .unwrap()
+    //     .unwrap();
+
+    // let sender_account = binding.account();
 
     // client
     //     .import_account_by_id(AccountId::from_hex("0x050c96618cdcac2000079184cf6da4").unwrap())
@@ -120,10 +110,10 @@ async fn main() -> anyhow::Result<()> {
     // let faucet = binding.account();
 
     // client
-    //     .import_account_by_id(AccountId::from_hex("0xecb09140fec7c2200007a60ef65554").unwrap())
+    //     .import_account_by_id(AccountId::from_hex(&cli.token_a).unwrap())
     //     .await?;
     // let binding = client
-    //     .get_account(AccountId::from_hex("0xecb09140fec7c2200007a60ef65554").unwrap())
+    //     .get_account(AccountId::from_hex(&cli.token_b).unwrap())
     //     .await
     //     .unwrap()
     //     .unwrap();
@@ -142,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap();
 
     // offered asset amount
-    let amount_a = 50;
+    let amount_a = cli.amount_a;
     let asset_a = FungibleAsset::new(faucet.id(), amount_a).unwrap();
 
     // requested asset amount
@@ -178,7 +168,7 @@ async fn main() -> anyhow::Result<()> {
     client.sync_state().await?;
 
     // This is added so that the user.rs can be called multiple times with different sqlite3 file
-    delete_keystore_and_store(&cli.user_id).await;
+    delete_keystore_and_store(&cli.user).await;
 
     // serialize the swap note for sending over tcp
     let buffer = swap_note.to_bytes();
@@ -255,140 +245,4 @@ pub fn create_partial_swap_note(
     let note = Note::new(assets.clone(), metadata, recipient.clone());
 
     Ok(note)
-}
-
-pub async fn create_account(
-    client: &mut Client,
-    keystore: FilesystemKeyStore<rand::prelude::StdRng>,
-) -> Result<Account, ClientError> {
-    let mut init_seed = [0_u8; 32];
-    client.rng().fill_bytes(&mut init_seed);
-
-    let key_pair = SecretKey::with_rng(client.rng());
-
-    // Anchor block
-    let anchor_block = client.get_latest_epoch_block().await.unwrap();
-
-    // Build the account
-    let builder = AccountBuilder::new(init_seed)
-        .anchor((&anchor_block).try_into().unwrap())
-        .account_type(AccountType::RegularAccountUpdatableCode)
-        .storage_mode(AccountStorageMode::Public)
-        .with_component(RpoFalcon512::new(key_pair.public_key()))
-        .with_component(BasicWallet);
-
-    let (alice_account, seed) = builder.build().unwrap();
-
-    // Add the account to the client
-    client
-        .add_account(&alice_account, Some(seed), false)
-        .await?;
-
-    // Add the key pair to the keystore
-    keystore
-        .add_key(&AuthSecretKey::RpoFalcon512(key_pair))
-        .unwrap();
-    Ok(alice_account)
-}
-
-pub async fn create_faucet(
-    client: &mut Client,
-    keystore: FilesystemKeyStore<rand::prelude::StdRng>,
-    symbol: &str,
-) -> Result<Account, ClientError> {
-    // Faucet seed
-    let mut init_seed = [0u8; 32];
-    client.rng().fill_bytes(&mut init_seed);
-
-    // Faucet parameters
-    let symbol = TokenSymbol::new(symbol).unwrap();
-    let decimals = 8;
-    let max_supply = Felt::new(1_000_000);
-
-    // Generate key pair
-    let key_pair = SecretKey::with_rng(client.rng());
-
-    let anchor_block = client.get_latest_epoch_block().await.unwrap();
-
-    // Build the account
-    let builder = AccountBuilder::new(init_seed)
-        .anchor((&anchor_block).try_into().unwrap())
-        .account_type(AccountType::FungibleFaucet)
-        .storage_mode(AccountStorageMode::Public)
-        .with_component(RpoFalcon512::new(key_pair.public_key()))
-        .with_component(BasicFungibleFaucet::new(symbol, decimals, max_supply).unwrap());
-
-    let (faucet_account, seed) = builder.build().unwrap();
-
-    // Add the faucet to the client
-    client
-        .add_account(&faucet_account, Some(seed), false)
-        .await?;
-
-    // Add the key pair to the keystore
-    keystore
-        .add_key(&AuthSecretKey::RpoFalcon512(key_pair))
-        .unwrap();
-
-    println!("Faucet account ID: {:?}", faucet_account.id().to_hex());
-
-    // Resync to show newly deployed faucet
-    client.sync_state().await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    Ok(faucet_account)
-}
-
-pub async fn mint_and_consume(
-    client: &mut Client,
-    faucet_account: Account,
-    token_account: Account,
-    amount: u64,
-) -> Result<(), ClientError> {
-    let fungible_asset = FungibleAsset::new(faucet_account.id(), amount).unwrap();
-
-    let transaction_request = TransactionRequestBuilder::mint_fungible_asset(
-        fungible_asset,
-        token_account.id(),
-        NoteType::Public,
-        client.rng(),
-    )
-    .unwrap()
-    .build()
-    .unwrap();
-
-    println!("tx request built");
-
-    let tx_execution_result = client
-        .new_transaction(faucet_account.id(), transaction_request)
-        .await?;
-    client.submit_transaction(tx_execution_result).await?;
-
-    loop {
-        // Resync to get the latest data
-        client.sync_state().await?;
-
-        let consumable_notes = client
-            .get_consumable_notes(Some(token_account.id()))
-            .await?;
-        let list_of_note_ids: Vec<_> = consumable_notes.iter().map(|(note, _)| note.id()).collect();
-
-        if list_of_note_ids.len() == 1 {
-            let transaction_request = TransactionRequestBuilder::consume_notes(list_of_note_ids)
-                .build()
-                .unwrap();
-            let tx_execution_result = client
-                .new_transaction(token_account.id(), transaction_request)
-                .await?;
-
-            client.submit_transaction(tx_execution_result).await?;
-            break;
-        } else {
-            tokio::time::sleep(Duration::from_secs(3)).await;
-        }
-    }
-
-    client.sync_state().await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-    Ok(())
 }

@@ -3,7 +3,6 @@ use miden_objects::note::{Note, NoteTag};
 use miden_objects::asset::Asset;
 use miden_lib::utils::Deserializable;
 use miden_tx::utils::ToHex;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::collections::BTreeMap;
