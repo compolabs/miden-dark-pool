@@ -26,11 +26,18 @@ use std::sync::Arc;
 mod utils;
 use clap::Parser;
 use std::net::SocketAddr;
+use thiserror::Error;
 use utils::utility::{create_faucet, mint_and_consume};
 use utils::{
     common::{MidenNote, delete_keystore_and_store},
     utility::create_account,
 };
+
+#[derive(Error, Debug)]
+pub enum UserError {
+    #[error("Unable to connect to client")]
+    ClientNotAbleToConnect,
+}
 
 #[derive(Parser, Debug)]
 #[command(about = "Submit a swap Note(private) to the matcher")]
@@ -63,8 +70,7 @@ async fn main() -> anyhow::Result<()> {
     assert!(cli.token_a != cli.token_b);
     assert!(cli.amount_a > 0);
 
-    let keystore_path = format!("./keystore_{}", cli.user);
-    let store_path = format!("./store_{}.sqlite3", cli.user);
+    let keystore_path = format!("./keystore");
 
     // Initialize client & keystore
     let endpoint = Endpoint::new(
@@ -78,7 +84,6 @@ async fn main() -> anyhow::Result<()> {
     let mut client = ClientBuilder::new()
         .with_rpc(rpc_api)
         .with_filesystem_keystore(&keystore_path)
-        .with_sqlite_store(&store_path)
         .in_debug_mode(true)
         .build()
         .await?;
@@ -86,50 +91,52 @@ async fn main() -> anyhow::Result<()> {
     let sync_summary = client.sync_state().await.unwrap();
     println!("Latest block: {}", sync_summary.block_num);
 
-    let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
-        FilesystemKeyStore::new(keystore_path.into()).unwrap();
+    // let keystore: FilesystemKeyStore<rand::prelude::StdRng> =
+    //     FilesystemKeyStore::new(keystore_path.into()).unwrap();
 
-    let sender_account = create_account(&mut client, keystore.clone()).await.unwrap();
-    // let binding = client
-    //     .get_account(AccountId::from_hex(&cli.user).unwrap())
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
+    // let sender_account = create_account(&mut client, keystore.clone()).await.unwrap();
 
-    // let sender_account = binding.account();
-
-    // client
-    //     .import_account_by_id(AccountId::from_hex("0x050c96618cdcac2000079184cf6da4").unwrap())
-    //     .await
-    //     .unwrap();
-    // let binding = client
-    //     .get_account(AccountId::from_hex("0x050c96618cdcac2000079184cf6da4").unwrap())
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
-    // let faucet = binding.account();
-
-    // client
-    //     .import_account_by_id(AccountId::from_hex(&cli.token_a).unwrap())
-    //     .await?;
-    // let binding = client
-    //     .get_account(AccountId::from_hex(&cli.token_b).unwrap())
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
-    // let faucet2 = binding.account();
-
-    let faucet = create_faucet(&mut client, keystore.clone(), "ETH")
+    client
+        .import_account_by_id(AccountId::from_hex(&cli.user).unwrap())
         .await
         .unwrap();
 
-    let faucet2 = create_faucet(&mut client, keystore.clone(), "ETH")
+    let binding = client
+        .get_account(AccountId::from_hex(&cli.user).unwrap())
         .await
+        .unwrap()
         .unwrap();
 
-    let _ = mint_and_consume(&mut client, faucet.clone(), sender_account.clone(), 1000)
+    let sender_account = binding.account();
+
+    client
+        .import_account_by_id(AccountId::from_hex(&cli.token_a).unwrap())
         .await
         .unwrap();
+    let binding = client
+        .get_account(AccountId::from_hex(&cli.token_a).unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    let faucet = binding.account();
+
+    client
+        .import_account_by_id(AccountId::from_hex(&cli.token_b).unwrap())
+        .await?;
+    let binding = client
+        .get_account(AccountId::from_hex(&cli.token_b).unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    let faucet2 = binding.account();
+
+    // let faucet2 = create_faucet(&mut client, keystore.clone(), "ETH")
+    //     .await
+    //     .unwrap();
+
+    // let _ = mint_and_consume(&mut client, faucet.clone(), sender_account.clone(), 1000)
+    //     .await
+    //     .unwrap();
 
     // offered asset amount
     let amount_a = cli.amount_a;
