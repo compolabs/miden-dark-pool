@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::sleep;
 
+use miden_dark_pool::utils::common::delete_keystore_and_store;
 use miden_dark_pool::utils::test_utils::TestUser;
 use miden_dark_pool::utils::test_utils::setup_test_user;
 use miden_dark_pool::utils::utility::create_faucet;
@@ -62,6 +63,7 @@ async fn test_user_flow() {
         keystore,
         &format!("testuser"),
         faucet_a.clone(),
+        faucet_b.clone(),
         100,
     )
     .await;
@@ -75,16 +77,17 @@ async fn test_user_flow() {
             "--bin",
             "user",
             "--",
-            "--user",
+            "open-order",
+            "--user-id",
             users[0].account_id.id().to_hex().as_str(),
-            "--token-a",
+            "--offered-asset",
             faucet_a.id().to_hex().as_str(),
-            "--amount-a",
+            "--offered-amount",
             "50",
-            "--token-b",
+            "--requested-asset",
             faucet_b.id().to_hex().as_str(),
-            "--matcher-addr",
-            "127.0.0.1:8080",
+            "--price",
+            "100",
         ])
         .output()
         .expect("Failed to execute user binary");
@@ -96,5 +99,6 @@ async fn test_user_flow() {
     println!("stderr:\n{}", stderr);
 
     assert!(output.status.success(), "User binary failed");
-    assert!(stdout.contains("Note sent!"));
+    assert!(stdout.contains("Note sent"));
+    delete_keystore_and_store().await;
 }
