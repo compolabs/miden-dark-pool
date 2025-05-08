@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use miden_lib::{note::utils::build_swap_tag, transaction::TransactionKernel};
+use miden_objects::asset::FungibleAsset;
 use miden_objects::note::{
     Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteInputs, NoteMetadata,
     NoteRecipient, NoteScript, NoteTag, NoteType,
@@ -74,9 +75,8 @@ pub(crate) fn create_partial_swap_note(
     let note_type = NoteType::Private;
 
     let requested_asset_word: Word = requested_asset.into();
-    let tag = build_swap_tag(note_type, &offered_asset, &requested_asset)?;
 
-    let swapp_tag = build_swap_tag(note_type, &offered_asset, &requested_asset)?;
+    let swapp_tag = get_tag(note_type, &offered_asset, &requested_asset)?;
     let p2id_tag = NoteTag::from_account_id(creator, NoteExecutionMode::Local)?;
 
     let inputs = NoteInputs::new(vec![
@@ -102,7 +102,7 @@ pub(crate) fn create_partial_swap_note(
     let metadata = NoteMetadata::new(
         last_consumer,
         note_type,
-        tag,
+        swapp_tag,
         NoteExecutionHint::always(),
         aux,
     )?;
@@ -140,4 +140,16 @@ pub async fn delete_keystore_and_store() {
         }
         Err(e) => eprintln!("failed to read directory {}: {}", keystore_dir, e),
     }
+}
+
+/// Generates a SWAP note tag
+/// build_swap_tag(note_type, asset1, asset2)
+/// where asset_{i} is an Asset created with AssetId of the asset pairs and 0 amount so that the tag is deterministic for a given asset pair
+fn get_tag(note_type: NoteType, asset1: &Asset, asset2: &Asset) -> Result<NoteTag, NoteError> {
+    let id1 = asset1.unwrap_fungible().faucet_id();
+    let id2 = asset2.unwrap_fungible().faucet_id();
+    let asset1 = FungibleAsset::new(id1, 0).unwrap();
+    let asset2 = FungibleAsset::new(id2, 0).unwrap();
+    let tag = build_swap_tag(note_type, &asset1.into(), &asset2.into())?;
+    Ok(tag)
 }

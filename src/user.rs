@@ -14,6 +14,9 @@ use utils::common::MidenNote;
 pub enum Cli {
     #[command(name = "open-order")]
     OpenOrder(cli::open_order::OpenOrder),
+
+    #[command(name = "cancel-order")]
+    CancelOrder(cli::cancel_order::CancelOrder),
 }
 
 #[tokio::main]
@@ -41,6 +44,10 @@ async fn main() -> anyhow::Result<()> {
 
             println!("Note sent");
             println!("Note id: {}", swap_note.id().to_hex());
+        }
+
+        Cli::CancelOrder(cmd) => {
+            todo!()
         }
     }
 

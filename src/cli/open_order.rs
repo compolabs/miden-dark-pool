@@ -40,7 +40,7 @@ pub struct OpenOrder {
 }
 
 #[derive(Error, Debug)]
-pub enum OpenOrderError {
+pub enum OrderError {
     #[error("Client error:")]
     Client(#[from] ClientError),
 
@@ -49,7 +49,7 @@ pub enum OpenOrderError {
 }
 
 impl OpenOrder {
-    pub(crate) async fn run(&self) -> Result<Note, OpenOrderError> {
+    pub(crate) async fn run(&self) -> Result<Note, OrderError> {
         let mut client = client_setup().await?;
 
         let user_id = AccountId::from_hex(&self.user_id)?;
