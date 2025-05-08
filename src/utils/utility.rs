@@ -66,6 +66,8 @@ pub async fn create_account(
     Ok(alice_account)
 }
 
+// TODO: Not a dead code
+#[allow(dead_code)]
 pub async fn create_faucet(
     client: &mut Client,
     keystore: FilesystemKeyStore<rand::prelude::StdRng>,
@@ -131,8 +133,6 @@ pub async fn mint_and_consume(
     .unwrap()
     .build()
     .unwrap();
-
-    println!("tx request built");
 
     let tx_execution_result = client
         .new_transaction(faucet_account.id(), transaction_request)
