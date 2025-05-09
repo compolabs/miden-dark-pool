@@ -46,6 +46,12 @@ pub enum OrderError {
 
     #[error("Account error:")]
     InvalidAccountID(#[from] AccountIdError),
+
+    #[error("hex error:")]
+    InvalidFelt(#[from] miden_objects::utils::HexParseError),
+
+    #[error("order already consumed")]
+    OrderAlreadyConsumed,
 }
 
 impl OpenOrder {
@@ -100,7 +106,7 @@ impl OpenOrder {
 /// Generates a random serial number
 /// hash(AccountId||random u64)
 /// AccountId is treated as domain separation tag
-fn get_serial_num(acc_id: AccountId) -> [Felt; 4] {
+pub fn get_serial_num(acc_id: AccountId) -> [Felt; 4] {
     let mut rng = rand::rng();
     let num = rng.r#random::<u64>();
     let data = format!("{}{}", acc_id.to_hex(), num);
