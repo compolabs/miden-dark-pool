@@ -47,7 +47,8 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Cli::CancelOrder(cmd) => {
-            todo!()
+            let result = cmd.run().await?;
+            println!("{}", result);
         }
     }
 

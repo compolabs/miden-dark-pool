@@ -111,8 +111,6 @@ pub async fn create_faucet(
 
     // Resync to show newly deployed faucet
     client.sync_state().await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
     Ok(faucet_account)
 }
 
@@ -164,6 +162,5 @@ pub async fn mint_and_consume(
     }
 
     client.sync_state().await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
     Ok(())
 }

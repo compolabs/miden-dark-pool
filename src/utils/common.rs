@@ -23,7 +23,7 @@ pub struct MidenNote {
     pub payload: Vec<u8>,
 }
 
-pub(crate) async fn client_setup() -> Result<Client, ClientError> {
+pub async fn client_setup() -> Result<Client, ClientError> {
     // Initialize client & keystore
     let endpoint = Endpoint::new(
         "https".to_string(),
@@ -60,7 +60,7 @@ pub(crate) async fn get_account(
 }
 
 /// Generates a SWAP note - swap of assets between two accounts
-pub(crate) fn create_partial_swap_note(
+pub fn create_partial_swap_note(
     creator: AccountId,
     last_consumer: AccountId,
     offered_asset: Asset,

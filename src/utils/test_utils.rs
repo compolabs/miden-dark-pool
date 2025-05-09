@@ -6,6 +6,7 @@ use rand::rngs::StdRng;
 
 //TODO: not a dead code
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct TestUser {
     pub user_id: String,
     pub account_id: Account,
@@ -14,7 +15,7 @@ pub struct TestUser {
 //TODO: not a dead code
 #[allow(dead_code)]
 pub async fn setup_test_user(
-    mut client: Client,
+    mut client: &mut Client,
     keystore: FilesystemKeyStore<StdRng>,
     user_id: &str,
     faucet_a: Account,
@@ -36,6 +37,8 @@ pub async fn setup_test_user(
         .await
         .unwrap();
 
+    let _ = client.sync_state().await.unwrap();
+
     TestUser {
         user_id: user_id.to_string(),
         account_id: account,
@@ -51,7 +54,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    #[ignore = "NA"]
+    #[ignore = "Taking significant time"]
     #[tokio::test]
     async fn test_setup() {
         let endpoint = Endpoint::new(
@@ -87,7 +90,7 @@ mod tests {
         let mut users: Vec<TestUser> = Vec::new();
 
         let user = setup_test_user(
-            client,
+            &mut client,
             keystore.clone(),
             &format!("testuser"),
             faucet_a.clone(),
