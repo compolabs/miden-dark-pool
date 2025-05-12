@@ -4,17 +4,18 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::time::sleep;
 
+use miden_client::transaction::TransactionRequestBuilder;
+use miden_dark_pool::cli::open_order::get_serial_num;
 use miden_dark_pool::utils::common::client_setup;
+use miden_dark_pool::utils::common::create_partial_swap_note;
 use miden_dark_pool::utils::common::delete_keystore_and_store;
 use miden_dark_pool::utils::test_utils::TestUser;
 use miden_dark_pool::utils::test_utils::setup_test_user;
 use miden_dark_pool::utils::utility::create_faucet;
 use miden_objects::asset::FungibleAsset;
-use miden_dark_pool::cli::open_order::get_serial_num;
-use miden_dark_pool::utils::common::create_partial_swap_note;
-use miden_client::transaction::TransactionRequestBuilder;
 use miden_objects::transaction::OutputNote;
 
+#[ignore = "Taking significant time(~70s)"]
 #[tokio::test]
 async fn test_user_flow() {
     // Launch test matcher server in background
@@ -87,7 +88,6 @@ async fn test_user_flow() {
     delete_keystore_and_store().await;
 }
 
-#[ignore = "Taking significant time(~70s)"]
 #[tokio::test]
 async fn test_cancel_order() {
 
@@ -105,8 +105,7 @@ async fn test_cancel_order() {
         .await
         .unwrap();
 
-    let mut users: Vec<TestUser> = Vec::new();
-
+    // creates a user account and mints and consumes tokens(faucet_a: 100 and faucet_b: 20)
     let user = setup_test_user(
         &mut client,
         keystore,
@@ -116,16 +115,23 @@ async fn test_cancel_order() {
         100,
     )
     .await;
-    users.push(user.clone());
 
-    let asset_a = FungibleAsset::new(faucet_a.id(), 100).unwrap();
-    let asset_b = FungibleAsset::new(faucet_b.id(), 100).unwrap();
+    let asset_a = FungibleAsset::new(faucet_a.id(), 50).unwrap();
+    let asset_b = FungibleAsset::new(faucet_b.id(), 50).unwrap();
+
+    let acc = client
+        .get_account(user.account_id.id())
+        .await
+        .unwrap()
+        .unwrap();
+    let balance1 = acc.account().vault().get_balance(faucet_a.id()).unwrap();
+    let balance2 = acc.account().vault().get_balance(faucet_b.id()).unwrap();
+    assert!(balance1 == 100);
+    assert!(balance2 == 20);
 
     // Set up the swap transaction
     let serial_num = get_serial_num(user.account_id.id());
     let fill_number = 0;
-
-    
 
     // Create the partial swap note
     let swap_note = create_partial_swap_note(
@@ -143,10 +149,23 @@ async fn test_cancel_order() {
         .build()
         .unwrap();
 
-    let tx_result = client.new_transaction(user.account_id.id(), note_req).await.unwrap();
+    let tx_result = client
+        .new_transaction(user.account_id.id(), note_req)
+        .await
+        .unwrap();
 
     let _ = client.submit_transaction(tx_result).await;
     client.sync_state().await.unwrap();
+
+    let acc = client
+        .get_account(user.account_id.id())
+        .await
+        .unwrap()
+        .unwrap();
+    let balance1 = acc.account().vault().get_balance(faucet_a.id()).unwrap();
+    let balance2 = acc.account().vault().get_balance(faucet_b.id()).unwrap();
+    assert!(balance1 == 50);
+    assert!(balance2 == 20);
 
     // Call the user binary
     let output = Command::new("cargo")
@@ -158,7 +177,7 @@ async fn test_cancel_order() {
             "--",
             "cancel-order",
             "--user-id",
-            users[0].account_id.id().to_hex().as_str(),
+            user.account_id.id().to_hex().as_str(),
             "--order-id",
             swap_note.id().to_hex().as_str(),
             "--tag",
@@ -175,5 +194,21 @@ async fn test_cancel_order() {
 
     assert!(output.status.success(), "User binary failed");
     assert!(stdout.contains("true"));
+
+    //TODO: the assertion is failing
+    let acc = client
+        .get_account(user.account_id.id())
+        .await
+        .unwrap()
+        .unwrap();
+    let balance1 = acc.account().vault().get_balance(faucet_a.id()).unwrap();
+    println!("Balance1: {}", balance1);
+    let balance2 = acc.account().vault().get_balance(faucet_b.id()).unwrap();
+    println!("Balance2: {}", balance2);
+
+    // Actual Output: 70 and 0
+    assert!(balance1 == 100);
+    assert!(balance2 == 20);
+
     delete_keystore_and_store().await;
 }
