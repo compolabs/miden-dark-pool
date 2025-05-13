@@ -17,6 +17,9 @@ pub enum Cli {
 
     #[command(name = "cancel-order")]
     CancelOrder(cli::cancel_order::CancelOrder),
+
+    #[command(name = "consume-swapped")]
+    ConsumeSwapped(cli::consume_swapped::ConsumeSwapped),
 }
 
 #[tokio::main]
@@ -47,6 +50,11 @@ async fn main() -> anyhow::Result<()> {
         }
 
         Cli::CancelOrder(cmd) => {
+            let result = cmd.run().await?;
+            println!("{}", result);
+        }
+
+        Cli::ConsumeSwapped(cmd) => {
             let result = cmd.run().await?;
             println!("{}", result);
         }

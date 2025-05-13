@@ -256,7 +256,7 @@ proc.is_consumer_is_creator
     exec.account::get_id
     # => [acct_id_prefix, acct_id_suffix]
 
-    mem_load.SWAPP_CREATOR_PREFIX_INPUT mem_load.SWAPP_CREATOR_SUFFIX_INPUT
+    mem_load.SWAPP_CREATOR_SUFFIX_INPUT mem_load.SWAPP_CREATOR_PREFIX_INPUT
     # => [acct_id_prefix_input, acct_id_suffix_input, acct_id_prefix, acct_id_suffix]
 
     movup.2
