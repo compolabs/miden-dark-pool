@@ -90,7 +90,6 @@ async fn test_user_flow() {
 
 #[tokio::test]
 async fn test_cancel_order() {
-
     let mut client = client_setup().await.unwrap();
 
     let keystore = FilesystemKeyStore::new("./keystore".into()).unwrap();
@@ -195,7 +194,6 @@ async fn test_cancel_order() {
     assert!(output.status.success(), "User binary failed");
     assert!(stdout.contains("true"));
 
-    //TODO: the assertion is failing
     let acc = client
         .get_account(user.account_id.id())
         .await
@@ -206,7 +204,6 @@ async fn test_cancel_order() {
     let balance2 = acc.account().vault().get_balance(faucet_b.id()).unwrap();
     println!("Balance2: {}", balance2);
 
-    // Actual Output: 70 and 0
     assert!(balance1 == 100);
     assert!(balance2 == 20);
 
