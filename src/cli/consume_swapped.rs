@@ -41,13 +41,12 @@ impl ConsumeSwapped {
 
                 client.submit_transaction(tx_execution_result).await?;
                 break;
-            } 
-            
+            }
+
             if start.elapsed().as_secs() > 15 {
                 println!("Timed out");
-                break;
-
-            }else {
+                return Ok(false);
+            } else {
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
