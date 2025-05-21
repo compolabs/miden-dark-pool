@@ -15,9 +15,9 @@ use miden_dark_pool::utils::utility::create_faucet;
 use miden_objects::asset::FungibleAsset;
 use miden_objects::transaction::OutputNote;
 
-#[ignore = "Taking significant time(~70s)"]
+
 #[tokio::test]
-async fn test_user_flow() {
+async fn test_open_order() {
     // Launch test matcher server in background
     tokio::spawn(async {
         let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
