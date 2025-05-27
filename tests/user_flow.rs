@@ -8,16 +8,14 @@ use miden_client::transaction::TransactionRequestBuilder;
 use miden_dark_pool::cli::open_order::get_serial_num;
 use miden_dark_pool::utils::common::client_setup;
 use miden_dark_pool::utils::common::create_partial_swap_note;
-use miden_dark_pool::utils::common::delete_keystore_and_store;
-use miden_dark_pool::utils::test_utils::TestUser;
-use miden_dark_pool::utils::test_utils::setup_test_user;
-use miden_dark_pool::utils::utility::create_faucet;
 use miden_objects::asset::FungibleAsset;
 use miden_objects::transaction::OutputNote;
 
-#[ignore = "Taking significant time(~70s)"]
+pub mod utils;
+use utils::test_utils::{TestUser, create_faucet, delete_keystore_and_store, setup_test_user};
+
 #[tokio::test]
-async fn test_user_flow() {
+async fn test_open_order() {
     // Launch test matcher server in background
     tokio::spawn(async {
         let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();

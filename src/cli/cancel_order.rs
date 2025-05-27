@@ -48,7 +48,6 @@ impl CancelOrder {
 
         client.submit_transaction(tx_execution_result).await?;
         let _ = client.sync_state().await?;
-        
         println!("note consumed successfully.");
         println!("Order cancelled");
         Ok(true)
