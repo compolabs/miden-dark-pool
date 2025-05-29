@@ -165,7 +165,8 @@ pub async fn setup_test_user(
     user_id: &str,
     faucet_a: Account,
     faucet_b: Account,
-    amount: u64,
+    amount1: u64,
+    amount2: u64,
 ) -> TestUser {
     let sync_summary = client.sync_state().await.unwrap();
     println!("Latest block: {}", sync_summary.block_num);
@@ -174,11 +175,11 @@ pub async fn setup_test_user(
 
     client.sync_state().await.unwrap();
     // Mint token A to the user
-    mint_and_consume(&mut client, faucet_a, account.clone(), amount)
+    mint_and_consume(&mut client, faucet_a, account.clone(), amount1)
         .await
         .unwrap();
 
-    mint_and_consume(&mut client, faucet_b, account.clone(), 20)
+    mint_and_consume(&mut client, faucet_b, account.clone(), amount2)
         .await
         .unwrap();
 
@@ -239,6 +240,7 @@ mod tests {
             faucet_a.clone(),
             faucet_b.clone(),
             100,
+            20,
         )
         .await;
         users.push(user);

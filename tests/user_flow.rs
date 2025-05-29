@@ -48,6 +48,7 @@ async fn test_open_order() {
         faucet_a.clone(),
         faucet_b.clone(),
         100,
+        20,
     )
     .await;
     users.push(user);
@@ -110,6 +111,7 @@ async fn test_cancel_order() {
         faucet_a.clone(),
         faucet_b.clone(),
         100,
+        20,
     )
     .await;
 

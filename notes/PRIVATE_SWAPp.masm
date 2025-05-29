@@ -13,6 +13,7 @@ const.PUBLIC_NOTE=1
 const.PRIVATE_NOTE=2
 const.EXECUTION_HINT_ALWAYS=1
 const.FACTOR=0x000186A0 # 1e5
+const.ORACLE_PRICE_FACTOR=0x000F4240 # 10^6 (for Oracle price scaling)
 const.MAX_U32=0x0000000100000000
 
 # Memory Addresses
@@ -41,6 +42,16 @@ const.EMPTY_INPUT_10 = 0x000A
 const.EMPTY_INPUT_11 = 0x000B
 const.SWAPP_CREATOR_PREFIX_INPUT = 0x000C
 const.SWAPP_CREATOR_SUFFIX_INPUT = 0x000D
+const.EMPTY_INPUT_12 = 0x000E
+const.EMPTY_INPUT_13 = 0x000F
+const.ORACLE_ID_INPUT_0 = 0x0010
+const.ORACLE_ID_INPUT_1 = 0x0011
+const.ORACLE_ID_INPUT_2 = 0x0012
+const.ORACLE_ID_INPUT_3 = 0x0013
+const.ORACLE_PAIR_INPUT_0 = 0x0014
+const.ORACLE_PAIR_INPUT_1 = 0x0015
+const.ORACLE_PAIR_INPUT_2 = 0x0016
+const.ORACLE_PAIR_INPUT_3 = 0x0017
 
 # RESERVED INPUT MEMORY ADDRESSES 0 to 40
 
@@ -50,6 +61,7 @@ const.AMT_TOKENS_B = 0x0016
 const.AMT_TOKENS_B_IN = 0x002B
 const.AMT_TOKENS_A_OUT = 0x002C
 const.RATIO = 0x002D
+const.ORACLE_PRICE = 0x007D # New: To store the price from Oracle
 
 # TokenId Memory Addresses (60 to 70)
 const.TOKEN_A_ID_PREFIX = 0x002D
@@ -90,76 +102,43 @@ const.ERR_INVALID_SWAP_AMOUT_ZERO=0x0002000A
 # PRICE CALCULATION
 # =================================================================================================
 
-#! Returns the amount of tokens_a out given an amount of tokens_b
-#!
-#! Inputs: [tokens_a, tokens_b, tokens_b_in]
+#! Calculates the amount of tokens_a out given an amount of tokens_b_in and Oracle price.
+#! Inputs: [oracle_price, tokens_b_in]
 #! Outputs: [tokens_a_out]
+proc.calculate_tokens_a_out_from_oracle
+    mem_store.ORACLE_PRICE # store oracle_price
+    mem_store.AMT_TOKENS_B_IN # store tokens_b_in
+
+    mem_load.AMT_TOKENS_B_IN
+    u32split # [amt_b_in_high, amt_b_in_low]
+
+    mem_load.ORACLE_PRICE
+    u32split # [oracle_price_high, oracle_price_low, amt_b_in_high, amt_b_in_low]
+
+    exec.u64::wrapping_mul # [product_high, product_low] (amt_b_in * oracle_price)
+
+    push.ORACLE_PRICE_FACTOR
+    u32split # [FACTOR_high, FACTOR_low, product_high, product_low]
+
+    exec.u64::div # [tokens_a_out_high, tokens_a_out_low] (product / FACTOR)
+
+    # push.MAX_U32 mul add # This part seems related to adjusting for MAX_U32 if values exceed it.
+                          # Given u64::div returns a full u64, this might not be needed unless
+                          # you are specifically clamping or handling overflow in a custom way.
+                          # I'm removing it for now for a cleaner division, but keep it in mind.
+end
+
+#! Calls the ORACLE_ID get_median procedure of the provided account.
 #!
-proc.calculate_tokens_a_for_b
-    mem_store.AMT_TOKENS_A
-    mem_store.AMT_TOKENS_B
-    mem_store.AMT_TOKENS_B_IN
-
-    mem_load.AMT_TOKENS_B mem_load.AMT_TOKENS_A
-
-    gt
-    if.true
-        mem_load.AMT_TOKENS_B
-        u32split
-
-        push.FACTOR
-        u32split
-
-        exec.u64::wrapping_mul
-
-        mem_load.AMT_TOKENS_A
-        u32split
-
-        exec.u64::div
-        push.MAX_U32 mul add
-
-        mem_store.RATIO
-
-        mem_load.AMT_TOKENS_B_IN
-        u32split
-
-        push.FACTOR
-        u32split
-
-        exec.u64::wrapping_mul
-
-        mem_load.RATIO
-        u32split
-
-        exec.u64::div
-        push.MAX_U32 mul add
-
-    else
-        mem_load.AMT_TOKENS_A
-        u32split
-
-        push.FACTOR
-        u32split
-
-        exec.u64::wrapping_mul
-
-        mem_load.AMT_TOKENS_B
-        u32split
-
-        exec.u64::div
-
-        mem_load.AMT_TOKENS_B_IN
-        u32split
-
-        exec.u64::wrapping_mul
-
-        push.FACTOR
-        u32split
-
-        exec.u64::div
-        push.MAX_U32 mul add
-
-    end
+#! Inputs: [ORACLE_ID, PAIR]
+#! Output: [ENTRY] (price as Felt, multiplied by 10^6)
+proc.call_oracle_get_median
+    push.0xb86237a8c9cd35acfef457e47282cc4da43df676df410c988eab93095d8fb3b9
+    # => [GET_MEDIAN_HASH, ORACLE_ID, PAIR]
+    swapw swap.2 drop swap.2 drop
+    # => [oracle_id,oracle_id, GET_ENTRY_HASH, PAIR] (first oracle_id is used by execute_foreign_procedure)
+    exec.tx::execute_foreign_procedure
+    # => [price] (price is a Felt, which is a u64 in Miden)
 end
 
 # HASHING PROCEDURES
@@ -351,9 +330,32 @@ proc.execute_SWAPp
     # => [num_inputs, inputs_ptr]
 
     # make sure the number of inputs is N
-    eq.14 assert.err=ERR_SWAP_WRONG_NUMBER_OF_INPUTS
+    eq.24 assert.err=ERR_SWAP_WRONG_NUMBER_OF_INPUTS
     # => [inputs_ptr]
 
+    # Load ORACLE_ID and ORACLE_PAIR from note inputs
+    mem_loadw.ORACLE_ID_INPUT_0 # ORACLE_ID is 4 elements
+    mem_loadw.ORACLE_PAIR_INPUT_0 # PAIR is 4 elements
+
+    # Stack: [oracle_pair_3, oracle_pair_2, oracle_pair_1, oracle_pair_0, oracle_id_3, oracle_id_2, oracle_id_1, oracle_id_0]
+    # Reorder for proc.call_oracle_get_median: [ORACLE_ID, PAIR]
+    # Current: [PAIR_WORD, ORACLE_ID_WORD]
+    swapw # Stack: [ORACLE_ID_WORD, PAIR_WORD]
+
+    call.call_oracle_get_median
+    # => [oracle_price]
+
+    dup mem_store.ORACLE_PRICE # Store the fetched oracle price
+    # => [oracle_price]
+
+    # Check if oracle price is valid (non-zero)
+    push.0 neq assert.err=0x0002000B # Define ERR_ORACLE_PRICE_ZERO=0x0002000B
+    # => [oracle_price]
+
+    drop # Clean stack
+    # => []
+
+    # Get token_b_id for `call.account::get_balance` later
     mem_loadw.REQUESTED_ASSET_WORD_INPUT
     # => [REQUESTED_ASSET]
 
@@ -396,13 +398,13 @@ proc.execute_SWAPp
     end
     # = []
 
+    # --- Use Oracle Price for calculation ---
     mem_load.AMT_TOKENS_B_IN
-    # => [token_b_AMT_IN]
+    mem_load.ORACLE_PRICE
+    # Stack: [oracle_price, token_b_AMT_IN]
+    swap # Stack: [token_b_AMT_IN, oracle_price]
 
-    mem_load.AMT_TOKENS_B mem_load.AMT_TOKENS_A
-    # => [token_a_AMT, token_b_AMT, token_b_AMT_IN]
-
-    exec.calculate_tokens_a_for_b
+    exec.calculate_tokens_a_out_from_oracle
     # => [token_a_AMT_out]
 
     # store token_a_AMT_out in mem

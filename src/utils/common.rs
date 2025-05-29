@@ -117,7 +117,7 @@ pub fn create_partial_swap_note(
 /// Generates a SWAP note tag
 /// build_swap_tag(note_type, asset1, asset2)
 /// where asset_{i} is an Asset created with AssetId of the asset pairs and 0 amount so that the tag is deterministic for a given asset pair
-fn get_tag(note_type: NoteType, asset1: &Asset, asset2: &Asset) -> Result<NoteTag, NoteError> {
+pub fn get_tag(note_type: NoteType, asset1: &Asset, asset2: &Asset) -> Result<NoteTag, NoteError> {
     let id1 = asset1.unwrap_fungible().faucet_id();
     let id2 = asset2.unwrap_fungible().faucet_id();
     let asset1 = FungibleAsset::new(id1, 0).unwrap();
