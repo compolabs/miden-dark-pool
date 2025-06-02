@@ -1,34 +1,45 @@
+use anyhow::Context; // For .context()
 use miden_client::keystore::FilesystemKeyStore;
-
-#[allow(unused_imports)]
-use miden_dark_pool::{
-    cli::open_order::get_serial_num, utils::common::client_setup,
-    utils::common::create_partial_swap_note,
-};
-use miden_objects::asset::FungibleAsset;
-use miden_objects::transaction::OutputNote;
-
-#[allow(unused_imports)]
-use miden_client::{
-    Client, ClientError, account::Account, account::AccountId, builder::ClientBuilder,
-    rpc::Endpoint, rpc::TonicRpcClient, transaction::TransactionRequestBuilder,
-};
-
-// use serde::{Deserialize, Serialize};
-// use std::sync::Arc;
-#[allow(unused_imports)]
-use miden_lib::{note::utils::build_swap_tag, transaction::TransactionKernel};
+use miden_client::rpc::domain::account::AccountStorageRequirements;
+use miden_client::rpc::domain::account::StorageMapKey;
+use miden_client::transaction::ForeignAccount;
+use miden_client::transaction::OutputNote;
+use miden_client::transaction::TransactionRequestBuilder;
+use miden_client::{account::AccountId};
+// use miden_lib::note::utils::build_swap_tag;
+use miden_lib::transaction::TransactionKernel;
+// use miden_objects::assembly::{DefaultSourceManager, Library, LibraryPath, Module, ModuleKind};
+use miden_objects::asset::{FungibleAsset};
 use miden_objects::note::{
     Note, NoteAssets, NoteExecutionHint, NoteExecutionMode, NoteInputs, NoteMetadata,
     NoteRecipient, NoteScript, NoteTag, NoteType,
 };
-#[allow(unused_imports)]
-use miden_objects::{Felt, NoteError, Word, asset::Asset};
+use miden_objects::{Felt, Word};
 use miden_vm::Assembler;
 
+#[allow(unused_imports)]
+use miden_dark_pool::{
+    cli::open_order::get_serial_num, // Unused in this specific test, but kept as in original
+    utils::common::{client_setup, create_partial_swap_note, get_tag}, // get_tag and TestUser added for clarity
+};
 pub mod utils;
-use miden_dark_pool::utils::common::get_tag;
 use utils::test_utils::{create_faucet, delete_keystore_and_store, setup_test_user};
+
+// pub fn get_example_component_library() -> Library {
+//     let source_manager = Arc::new(DefaultSourceManager::default());
+//     let example_component_module = Module::parser(ModuleKind::Library)
+//         .parse_str(
+//             LibraryPath::new("swap_component::swap_module").unwrap(),
+//             include_str!("../notes/PRIVATE_SWAPp.masm"),
+//             &source_manager,
+//         )
+//         .unwrap();
+
+//     TransactionKernel::assembler()
+//         .with_debug_mode(true)
+//         .assemble_library([example_component_module])
+//         .expect("assembly should succeed")
+// }
 
 // cargo test --release --package miden-dark-pool --test swap_note -- test_swap_note --exact --show-output
 #[tokio::test]
@@ -88,8 +99,60 @@ async fn test_swap_note() {
     let p2id_tag = NoteTag::from_account_id(user.id(), NoteExecutionMode::Local).unwrap();
 
     let oracle_account_id = AccountId::from_hex("0x4f67e78643022e00000220d8997e33").unwrap();
+    client
+        .import_account_by_id(oracle_account_id)
+        .await
+        .unwrap();
+    let oracle = client
+        .get_account(oracle_account_id)
+        .await
+        .unwrap()
+        .expect("Oracle account not found");
+
+    let storage = oracle.account().storage();
+    let publisher_count = storage
+        .get_item(1)
+        .context("Unable to retrieve publisher count from Oracle storage")
+        .unwrap()[0]
+        .as_int();
+
+    let publisher_array: Vec<AccountId> = (1..publisher_count - 1)
+        .map(|i| {
+            storage
+                .get_item(2 + i as u8)
+                .context("Failed to retrieve publisher details")
+                .map(|words| AccountId::new_unchecked([words[3], words[2]]))
+        })
+        .collect::<Result<_, _>>()
+        .context("Failed to collect publisher array")
+        .unwrap();
+
+    let mut foreign_accounts: Vec<ForeignAccount> = vec![];
+
+    for publisher_id in publisher_array {
+        client.import_account_by_id(publisher_id).await.unwrap();
+        let foreign_account = ForeignAccount::public(
+            publisher_id,
+            AccountStorageRequirements::new([(
+                1u8,
+                &[StorageMapKey::from(Word::from([
+                    Felt::from(0u32),
+                    Felt::from(0u32),
+                    Felt::from(0u32),
+                    Felt::from(120195681u32),
+                ]))],
+            )]),
+        )
+        .unwrap();
+        foreign_accounts.push(foreign_account);
+    }
+
+    let oracle_foreign_account =
+        ForeignAccount::public(oracle_account_id, AccountStorageRequirements::default()).unwrap();
+    foreign_accounts.push(oracle_foreign_account);
+
     let btc_usd_pair_id: u32 = 120195681;
-    let mut note_inputs_vec: Vec<Felt> = Vec::with_capacity(22);
+    let mut note_inputs_vec: Vec<Felt> = Vec::with_capacity(24); // Capacity 24 for all 24 inputs
 
     note_inputs_vec.extend_from_slice(&requested_asset_word);
     note_inputs_vec.push(swapp_tag.inner().into());
@@ -133,6 +196,7 @@ async fn test_swap_note() {
 
     let note_req = TransactionRequestBuilder::new()
         .with_own_output_notes(vec![OutputNote::Full(note.clone())])
+        .with_foreign_accounts(foreign_accounts.clone())
         .build()
         .unwrap();
 
@@ -162,6 +226,7 @@ async fn test_swap_note() {
     // consumption of note
     // let consume_req = TransactionRequestBuilder::new()
     //     .with_unauthenticated_input_notes([(note, None)])
+    //     .with_foreign_accounts(foreign_accounts)
     //     .build()
     //     .unwrap();
 
